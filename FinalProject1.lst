@@ -1,0 +1,1512 @@
+                  2   $LIST
+0000              4   
+0000              5   ; Pin Declarations
+0000              6   SOUND_OUT     equ P1.1
+0000              7   First_Button  equ P0.1
+0000              8   Second_Button equ P0.3
+0000              9   Third_Button  equ P0.6
+0000             10   BOOT          equ P2.4
+0000             11   Fifth_Button  equ P2.2
+0000             12   
+0000             13   
+0000             14   CLK           EQU 22118400 ; Microcontroller system crystal frequency in Hz
+0000             15   TIMER0_RATE   EQU 4200     ; 2100Hz (High Freq)
+0000             16   TIMER0_RELOAD EQU ((65536-(CLK/TIMER0_RATE)))
+0000             17   TIMER1_RATE   EQU 4000     ; 2000Hz (Low Freq)
+0000             18   TIMER1_RELOAD EQU ((65536-(CLK/TIMER1_RATE)))
+0000             19   CReload EQU ((65536-(CLK/2093)))
+0000             20   EReload EQU ((65536-(CLK/2637)))
+0000             21   GReload EQU ((65536-(CLK/3135)))
+0000             22   GlReload EQU ((65536-(CLK/1568)))
+0000             23   TIMER1 EQU 4200
+0000             24   TIMER1R EQU ((65536-(CLK/TIMER1)))
+0000             25   
+0000             26   ; Timer 1,2,3 Declarations
+0000             27   org 0000H
+0000 0206D5      28      ljmp MyProgram
+0003             29      
+000B             30   org 0x000B
+000B 020498      31            ljmp Timer0_ISR
+000E             32   
+001B             33   org 0x0001B
+001B 0204DF      34            ljmp Timer1_ISR
+001E             35      
+001E             36   ; Timer/Counter 2 overflow interrupt vector
+002B             37   org 0x002B
+002B 0204F3      38            ljmp Timer2_ISR
+002E             39   
+002E             40   ; These register definitions needed by 'math32.inc'
+0030             41            DSEG at 30H
+0030             42            x:   ds 4
+0034             43            y:   ds 4
+0038             44            bcd: ds 5
+003D             45   ;16-bit timer 2 overflow (to measure the period of very slow signals)
+003D             46            sf: ds 3 ; status flag
+0040             47            Seed: ds 4 ;random number seed
+0044             48            counter: ds 1
+0045             49            counterMajor: ds 1
+0046             50            Period_A: ds 3
+0049             51            Period_B: ds 3
+004C             52            T2ov:     ds 1
+004D             53            player1count: ds 1
+004E             54            player2count: ds 1
+004F             55            player3count: ds 1
+0050             56            player4count: ds 1
+0051             57            Count1ms:     ds 2
+0053             58            speed: ds 1
+0054             59             
+0054             60   ; Flag Declarations 
+0000             61   BSEG
+0000             62            mf: dbit 1
+0001             63            fr_flag: dbit 1 ;to determine frequency of speaker
+0002             64            alarm_flag: dbit 1 ;to determine whether speaker is on/off
+0003             65            start_flag: dbit 1 ;to determine whether to play starting sounds
+0004             66            C_flag: dbit 1
+0005             67            G_flag: dbit 1
+0006             68            Gl_flag: dbit 1
+0007             69            E_flag: dbit 1
+0008             70            wait_flag: dbit 1
+0009             71            win1_flag: dbit 1
+000A             72            cheatcodeflag: dbit 1 
+000B             73            finalroundflag: dbit 1
+000C             74            speedflag: dbit 1
+000D             75            bigbugflag: dbit 1
+000E             76            bigbugflag2: dbit 1
+000F             77            bigbugflag3: dbit 1
+0010             78            bigbugflag4: dbit 1
+0011             79            
+0011             80   ;Include math32.inc since without it were quite useless
+                570   $LIST
+                 82   $LIST
+02C4             84   
+02C4             85   ; LCD pin declarations
+02C4             86   cseg
+02C4             87   ; These 'equ' must match the hardware wiring
+02C4             88            LCD_RS equ P3.2
+02C4             89   ;LCD_RW equ PX.X ; Not used in this code, connect the pin to GND
+02C4             90            LCD_E  equ P3.3
+02C4             91            LCD_D4 equ P3.4
+02C4             92            LCD_D5 equ P3.5
+02C4             93            LCD_D6 equ P3.6
+02C4             94            LCD_D7 equ P3.7
+02C4             95   
+02C4             96   ;Including LCD_4BIT.inc
+                 98   		$LIST
+0370            100   
+0370            101   ;                     1234567890123456    <- This helps determine the location of the counter (no one really knows how tho)
+0370            102   
+0370            103   ;String Messages for LCD
+0370 496E7365   104            Boot_Message1:     db 'Insert Coin', 0
+     72742043
+     6F696E00
+037C 2020546F   105            Boot_Message2:     db '  To Play  ', 0
+     20506C61
+     79202000
+0388 4E6F2073   106            No_Signal_Str:    db 'No signal     %', 0
+     69676E61
+     6C202020
+     20202500
+0398 50313A20   107            C1:    db 'P1: ', 0
+     00
+039D 50323A00   108            C2:    db 'P2:', 0
+03A1 50333A20   109            C3:    db 'P3: ', 0
+     00
+03A6 50343A00   110            C4:    db 'P4:', 0
+03AA 202000     111            clear:    db '  ', 0
+03AD 44657465   112            pressdetected: db 'Detected  ', 0
+     63746564
+     202000
+03B8 576900     113            win: db 'Wi', 0
+03BB 20205370   114            speeding: db '  Speeding up!  ' , 0
+     65656469
+     6E672075
+     70212020
+     00
+03CC 4C554444   115       speeding2:db  'LUDDDDAACCRRISSS' , 0
+     44444141
+     43435252
+     49535353
+     00
+03DD 20204669   116       finalround: db '  Final Round   ' , 0
+     6E616C20
+     526F756E
+     64202020
+     00
+03EE 20202020   117       empty: db '                 ' , 0
+     20202020
+     20202020
+     20202020
+     2000
+0400 20202052   118       roundd: db '   Round Two    ' , 0
+     6F756E64
+     2054776F
+     20202020
+     00
+0411 20202000   119            seven: db '   ', 0
+0415            120   ; Sends 10-digit BCD number in bcd to the LCD
+0415            121   Display_10_digit_BCD:
+0415 C000       122            push ar0
+0417 A83C       122            mov r0, bcd+4
+0419 12035A     122            lcall ?Display_BCD
+041C D000       122            pop ar0
+041E C000       123            push ar0
+0420 A83B       123            mov r0, bcd+3
+0422 12035A     123            lcall ?Display_BCD
+0425 D000       123            pop ar0
+0427 C000       124            push ar0
+0429 A83A       124            mov r0, bcd+2
+042B 12035A     124            lcall ?Display_BCD
+042E D000       124            pop ar0
+0430 C000       125            push ar0
+0432 A839       125            mov r0, bcd+1
+0434 12035A     125            lcall ?Display_BCD
+0437 D000       125            pop ar0
+0439 C000       126            push ar0
+043B A838       126            mov r0, bcd+0
+043D 12035A     126            lcall ?Display_BCD
+0440 D000       126            pop ar0
+0442 22         127            ret
+0443            128   
+0443            129   Timer0_Init:
+0443 E589       130            mov a, TMOD
+0445 54F0       131            anl a, #0xf0 ; Clear the bits for timer 0
+0447 4401       132            orl a, #0x01 ; Configure timer 0 as 16-timer
+0449 F589       133            mov TMOD, a
+044B 758CEB     134            mov TH0, #high(TIMER0_RELOAD)
+044E 758A6E     135            mov TL0, #low(TIMER0_RELOAD)
+0451            136            ; Set autoreload value
+0451 75F4EB     137            mov RH0, #high(TIMER0_RELOAD)
+0454 75F26E     138            mov RL0, #low(TIMER0_RELOAD)
+0457            139            ; Enable the timer and interrupts
+0457 D2A9       140       setb ET0  ; Enable timer 0 interrupt
+0459 D28C       141       setb TR0  ; Start timer 0
+045B 22         142            ret
+045C            143            
+045C            144   CNote:
+045C 758CD6     145            mov TH0, #high(CReload)
+045F 758AB9     146            mov TL0, #low(CReload)
+0462            147            ; Set autoreload value
+0462 75F4D6     148            mov RH0, #high(CReload)
+0465 75F2B9     149            mov RL0, #low(CReload)
+0468 0204C5     150            ljmp HighFr
+046B            151            
+046B            152   GNote:
+046B 758CE4     153            mov TH0, #high(GReload)
+046E 758A71     154            mov TL0, #low(GReload)
+0471            155            ; Set autoreload value
+0471 75F4E4     156            mov RH0, #high(GReload)
+0474 75F271     157            mov RL0, #low(GReload)
+0477 0204C5     158            ljmp HighFr
+047A            159            
+047A            160   GlNote:
+047A 758CC8     161            mov TH0, #high(GlReload)
+047D 758AE6     162            mov TL0, #low(GlReload)
+0480            163            ; Set autoreload value
+0480 75F4C8     164            mov RH0, #high(GlReload)
+0483 75F2E6     165            mov RL0, #low(GlReload)
+0486 0204C5     166            ljmp HighFr
+0489            167            
+0489            168   ENote:
+0489 758CDF     169            mov TH0, #high(EReload)
+048C 758A3D     170            mov TL0, #low(EReload)
+048F            171            ; Set autoreload value
+048F 75F4DF     172            mov RH0, #high(EReload)
+0492 75F23D     173            mov RL0, #low(EReload)
+0495 0204C5     174            ljmp HighFr
+0498            175            
+0498            176   Timer0_ISR:
+0498            177            ;clr TF0  ; According to the data sheet this is done for us already.
+0498 30022C     178            jnb alarm_flag, Done
+049B 2004BE     179            jb C_flag, CNote
+049E 2005CA     180            jb G_flag, GNote
+04A1 2006D6     181            jb Gl_flag, GlNote
+04A4 2007E2     182            jb E_flag, ENote
+04A7 30010F     183            jnb fr_flag, LowFr
+04AA 758CEB     184            mov TH0, #high(TIMER0_RELOAD)
+04AD 758A6E     185            mov TL0, #low(TIMER0_RELOAD)
+04B0            186            ; Set autoreload value
+04B0 75F4EB     187            mov RH0, #high(TIMER0_RELOAD)
+04B3 75F26E     188            mov RL0, #low(TIMER0_RELOAD)
+04B6 0204C5     189            ljmp HighFr
+04B9            190            
+04B9            191   LowFr:
+04B9 758CEA     192            mov TH0, #high(TIMER1_RELOAD)
+04BC 758A67     193            mov TL0, #low(TIMER1_RELOAD)
+04BF            194            ; Set autoreload value
+04BF 75F4EA     195            mov RH0, #high(TIMER1_RELOAD)
+04C2 75F267     196            mov RL0, #low(TIMER1_RELOAD)
+04C5            197            
+04C5            198   HighFr:
+04C5 B291       199            cpl SOUND_OUT ; Connect speaker to P1.1!
+04C7            200            
+04C7            201   Done:
+04C7 32         202            reti
+04C8            203   
+04C8            204            
+04C8            205            
+04C8            206   Timer1_Init:
+04C8 E589       207            mov a, TMOD
+04CA 54F0       208            anl a, #0xf0 ; Clear the bits for timer 1
+04CC 4401       209            orl a, #0x01 ; Configure timer 1 as 16-timer    mov TMOD, a
+04CE 758DEB     210            mov TH1, #high((TIMER1R))
+04D1 758B6E     211            mov TL1, #low((TIMER1R))
+04D4            212    ;Set autoreload value
+04D4 75F5EB     213            mov RH1, #high((TIMER1R))
+04D7 75F36E     214            mov RL1, #low((TIMER1R))
+04DA            215    ;Enable the timer and interrupts
+04DA D2AB       216            setb ET1  ; Enable timer 0 interrupt
+04DC D28E       217            setb TR1  ; Start timer 0
+04DE 22         218            ret
+04DF            219            
+04DF            220   Timer1_ISR:
+04DF            221            ; The two registers used in the ISR must be saved in the stack
+04DF            222            ;push acc
+04DF            223            ;push psw
+04DF 300810     224            jnb wait_flag, Timer1_ISR_done ;maybe delete this 
+04E2            225            ; Increment the 16-bit one mili second counter
+04E2 E544       226            mov a, counter
+04E4 2401       227       add a, #0x01
+04E6 D4         228       da a
+04E7 F544       229       mov counter, a
+04E9 B49906     230            cjne a, #0x99, Timer1_ISR_done
+04EC            231   
+04EC            232   Inc_Done:
+04EC            233   ;try regular flag here?
+04EC            234            ; Check if half second has passed
+04EC            235            
+04EC            236            
+04EC            237            ; 500 milliseconds have passed.  Set a flag so the main program knows
+04EC C208       238            clr wait_flag ; Let the main program know half second had passed
+04EE            239            ;cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
+04EE            240            ; Reset to zero the milli-seconds counter, it is a 16-bit variable
+04EE 7400       241            mov a, #0x00
+04F0 F544       242            mov counter, a
+04F2            243            
+04F2            244   Timer1_ISR_done:
+04F2            245            
+04F2            246            ;pop psw
+04F2            247            ;pop acc
+04F2 32         248            reti
+04F3            249            
+04F3            250   ;Initializes timer/counter 2 as a 16-bit timer
+04F3            251   Timer2_ISR:
+04F3 C2CF       252            clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in ISR.
+04F5 054C       253            inc T2ov
+04F7            254            
+04F7 300830     255            jnb wait_flag, Timer2_ISR_done ;maybe delete this 
+04FA            256            ; Increment the 16-bit one mili second counter
+04FA E544       257            mov a, counter
+04FC 2401       258       add a, #0x01
+04FE D4         259       da a
+04FF F544       260       mov counter, a
+0501 200B0F     261       jb finalroundflag, HighSpeed
+0504 200C06     262       jb speedflag, MedSpeed
+0507            263   LowSpeed:
+0507 B49920     264            cjne a, #0x99, Timer2_ISR_done ;add variable in place of 99 so i can decrement it
+050A 020516     265            ljmp Inc_Major
+050D            266   MedSpeed:
+050D B4601A     267            cjne a, #0x60, Timer2_ISR_done ;add variable in place of 99 so i can decrement it
+0510 020516     268            ljmp Inc_Major
+0513            269   HighSpeed:
+0513 B44514     270            cjne a, #0x45, Timer2_ISR_done ;add variable in place of 99 so i can decrement it
+0516            271   Inc_Major:
+0516 7400       272            mov a, #0x00
+0518 F544       273            mov counter, a
+051A            274   
+051A E545       275            mov a, counterMajor
+051C 2401       276            add a, #0x01
+051E D4         277            da a
+051F F545       278            mov counterMajor, a
+0521 B40306     279            cjne a, #0x03 , Timer2_ISR_done
+0524            280            
+0524            281            
+0524            282   Inc_Done2:
+0524            283   ;try regular flag here?
+0524            284            ; Check if half second has passed
+0524            285            
+0524            286            
+0524            287            ; 500 milliseconds have passed.  Set a flag so the main program knows
+0524 C208       288            clr wait_flag ; Let the main program know half second had passed
+0526            289            ;cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
+0526            290            ; Reset to zero the milli-seconds counter, it is a 16-bit variable
+0526 7400       291            mov a, #0x00
+0528 F545       292            mov counterMajor, a
+052A            293   Timer2_ISR_done:
+052A 32         294            reti
+052B            295   
+052B            296   ; When using a 22.1184MHz crystal in fast mode
+052B            297   ; one cycle takes 1.0/22.1184MHz = 45.21123 ns
+052B            298   ; (tuned manually to get as close to 1s as possible)
+052B            299   Wait1s:
+052B 7AB0       300       mov R2, #176
+052D 79FA       301   X3: mov R1, #250
+052F 78A6       302   X2: mov R0, #166
+0531 D8FE       303   X1: djnz R0, X1 ; 3 cycles->3*45.21123ns*166=22.51519us
+0533 D9FA       304       djnz R1, X2 ; 22.51519us*250=5.629ms
+0535 DAF6       305       djnz R2, X3 ; 5.629ms*176=1.0s (approximately)
+0537 22         306       ret
+0538            307   
+0538            308   ;Initializes timer/counter 2 as a 16-bit timer
+0538            309   InitTimer2:
+0538 75C800     310            mov T2CON, #0b_0000_0000 ; Stop timer/counter.  Set as timer (clock input is pin 22.1184MHz).
+053B            311            ; Set the reload value on overflow to zero (just in case is not zero)
+053B 75CB00     312            mov RCAP2H, #0
+053E 75CA00     313            mov RCAP2L, #0
+0541 D2AD       314            setb ET2  ; Enable timer 2 interrupt to count overflow
+0543 22         315       ret
+0544            316   
+0544            317   ;Converts the hex number in T2ov-TH2 to BCD in R2-R1-R0
+0544            318   hex2bcd5:
+0544 E4         319            clr a
+0545 7800       320       mov R0, #0  ;Set BCD result to 00000000 
+0547 7900       321       mov R1, #0
+0549 7A00       322       mov R2, #0
+054B 7B10       323       mov R3, #16 ;Loop counter.
+054D            324   
+054D            325   hex2bcd_loop:
+054D E5CD       326       mov a, TH2 ;Shift T2ov-TH2 left through carry
+054F 33         327       rlc a
+0550 F5CD       328       mov TH2, a
+0552            329       
+0552 E54C       330       mov a, T2ov
+0554 33         331       rlc a
+0555 F54C       332       mov T2ov, a
+0557            333         
+0557            334            ; Perform bcd + bcd + carry
+0557            335            ; using BCD numbers
+0557 E8         336            mov a, R0
+0558 38         337            addc a, R0
+0559 D4         338            da a
+055A F8         339            mov R0, a
+055B            340            
+055B E9         341            mov a, R1
+055C 39         342            addc a, R1
+055D D4         343            da a
+055E F9         344            mov R1, a
+055F            345            
+055F EA         346            mov a, R2
+0560 3A         347            addc a, R2
+0561 D4         348            da a
+0562 FA         349            mov R2, a
+0563            350            
+0563 DBE8       351            djnz R3, hex2bcd_loop
+0565 22         352            ret
+0566            353   
+0566            354   ; Dumps the 5-digit packed BCD number in R2-R1-R0 into the LCD
+0566            355   DisplayBCD_LCD:
+0566            356            ; 5th digit:
+0566 EA         357       mov a, R2
+0567 540F       358       anl a, #0FH
+0569 4430       359       orl a, #'0' ; convert to ASCII
+056B 120314     360            lcall ?WriteData
+056E            361            ; 4th digit:
+056E E9         362       mov a, R1
+056F C4         363       swap a
+0570 540F       364       anl a, #0FH
+0572 4430       365       orl a, #'0' ; convert to ASCII
+0574 120314     366            lcall ?WriteData
+0577            367            ; 3rd digit:
+0577 E9         368       mov a, R1
+0578 540F       369       anl a, #0FH
+057A 4430       370       orl a, #'0' ; convert to ASCII
+057C 120314     371            lcall ?WriteData
+057F            372            ; 2nd digit:
+057F E8         373       mov a, R0
+0580 C4         374       swap a
+0581 540F       375       anl a, #0FH
+0583 4430       376       orl a, #'0' ; convert to ASCII
+0585 120314     377            lcall ?WriteData
+0588            378            ; 1st digit:
+0588 E8         379       mov a, R0
+0589 540F       380       anl a, #0FH
+058B 4430       381       orl a, #'0' ; convert to ASCII
+058D 120314     382            lcall ?WriteData
+0590            383       
+0590 22         384       ret
+0591            385            
+0591            386   SeedGen:
+0591 D2CA       387            setb TR2
+0593 20A4FD     388            jb BOOT, $
+0596 85CD40     389            mov Seed+0, TH2
+0599 754101     390            mov Seed+1, #0x01
+059C 754287     391            mov Seed+2, #0x87
+059F 85CC43     392            mov Seed+3, TL2
+05A2 C2CA       393            clr TR2
+05A4 22         394            ret
+05A5            395            
+05A5            396   Random:
+05A5 854030     397            mov x+0, Seed+0
+05A8 854131     398            mov x+1, Seed+1
+05AB 854232     399            mov x+2, Seed+2
+05AE 854333     400            mov x+3, Seed+3
+05B1 7534FD     401            mov y+0, #low (214013 % 0x10000) 
+05B4 753543     401            mov y+1, #high(214013 % 0x10000) 
+05B7 753603     401            mov y+2, #low (214013 / 0x10000) 
+05BA 753700     401            mov y+3, #high(214013 / 0x10000) 
+05BD 1201A8     402            lcall mul32
+05C0 7534C3     403            mov y+0, #low (2531011 % 0x10000) 
+05C3 75359E     403            mov y+1, #high(2531011 % 0x10000) 
+05C6 753626     403            mov y+2, #low (2531011 / 0x10000) 
+05C9 753700     403            mov y+3, #high(2531011 / 0x10000) 
+05CC 1200F3     404            lcall add32
+05CF 853040     405            mov Seed+0, x+0
+05D2 853141     406            mov Seed+1, x+1
+05D5 853242     407            mov Seed+2, x+2
+05D8 853343     408            mov Seed+3, x+3
+05DB 22         409            ret
+05DC            410            
+05DC            411   Wait_Random:
+05DC C002       412            push AR2
+05DE AA40       412            mov R2, Seed+0
+05E0 1202CF     412            lcall ?Wait_Milli_Seconds
+05E3 D002       412            pop AR2
+05E5 C002       413            push AR2
+05E7 AA41       413            mov R2, Seed+1
+05E9 1202CF     413            lcall ?Wait_Milli_Seconds
+05EC D002       413            pop AR2
+05EE C002       414            push AR2
+05F0 AA42       414            mov R2, Seed+2
+05F2 1202CF     414            lcall ?Wait_Milli_Seconds
+05F5 D002       414            pop AR2
+05F7 C002       415            push AR2
+05F9 AA43       415            mov R2, Seed+3
+05FB 1202CF     415            lcall ?Wait_Milli_Seconds
+05FE D002       415            pop AR2
+0600 22         416            ret
+0601            417   
+0601            418   Wait_Random_Compounded:
+0601 1205DC     419            lcall Wait_Random
+0604 1205DC     420            lcall Wait_Random
+0607 1205DC     421            lcall Wait_Random
+060A 1205DC     422            lcall Wait_Random
+060D 22         423            ret
+060E            424   
+060E            425   Wait:
+060E C002       426            push AR2
+0610 7A64       426            mov R2, #100
+0612 1202CF     426            lcall ?Wait_Milli_Seconds
+0615 D002       426            pop AR2 
+0617 C002       427            push AR2
+0619 7A64       427            mov R2, #100
+061B 1202CF     427            lcall ?Wait_Milli_Seconds
+061E D002       427            pop AR2 
+0620 C002       428            push AR2
+0622 7A64       428            mov R2, #100
+0624 1202CF     428            lcall ?Wait_Milli_Seconds
+0627 D002       428            pop AR2 
+0629 C002       429            push AR2
+062B 7A64       429            mov R2, #100
+062D 1202CF     429            lcall ?Wait_Milli_Seconds
+0630 D002       429            pop AR2 
+0632 C002       430            push AR2
+0634 7A64       430            mov R2, #100
+0636 1202CF     430            lcall ?Wait_Milli_Seconds
+0639 D002       430            pop AR2 
+063B C002       431            push AR2
+063D 7A32       431            mov R2, #50
+063F 1202CF     431            lcall ?Wait_Milli_Seconds
+0642 D002       431            pop AR2 
+0644 22         432            ret
+0645            433            
+0645            434   Wait_Full:
+0645 C002       435            push AR2
+0647 7A64       435            mov R2, #100
+0649 1202CF     435            lcall ?Wait_Milli_Seconds
+064C D002       435            pop AR2 
+064E C002       436            push AR2
+0650 7A64       436            mov R2, #100
+0652 1202CF     436            lcall ?Wait_Milli_Seconds
+0655 D002       436            pop AR2 
+0657 C002       437            push AR2
+0659 7A64       437            mov R2, #100
+065B 1202CF     437            lcall ?Wait_Milli_Seconds
+065E D002       437            pop AR2 
+0660 22         438            ret
+0661            439            
+0661            440   Wait_Half:
+0661 C002       441            push AR2
+0663 7A64       441            mov R2, #100
+0665 1202CF     441            lcall ?Wait_Milli_Seconds
+0668 D002       441            pop AR2 
+066A C002       442            push AR2
+066C 7A32       442            mov R2, #50
+066E 1202CF     442            lcall ?Wait_Milli_Seconds
+0671 D002       442            pop AR2 
+0673 22         443            ret
+0674            444   
+0674            445   ;---------------------------------;
+0674            446   ; Hardware initialization         ;
+0674            447   ;---------------------------------;
+0674            448   
+0674            449   Initialize_All:
+0674 12031E     450            lcall LCD_4BIT ; Initialize LCD
+0677            451            
+0677 C0E0       452            push acc
+0679 7401       452            mov a, #1
+067B 14         452            dec a
+067C 120355     452            lcall ?Set_Cursor_1 ; Select column and row
+067F D0E0       452            pop acc
+0681 C083       453            push dph
+0683 C082       453            push dpl
+0685 C0E0       453            push acc
+0687 900370     453            mov dptr, #Boot_Message1
+068A 120348     453            lcall ?Send_Constant_String
+068D D0E0       453            pop acc
+068F D082       453            pop dpl
+0691 D083       453            pop dph
+0693 C0E0       454            push acc
+0695 7401       454            mov a, #1
+0697 14         454            dec a
+0698 120353     454            lcall ?Set_Cursor_2 ; Select column and row
+069B D0E0       454            pop acc
+069D C083       455            push dph
+069F C082       455            push dpl
+06A1 C0E0       455            push acc
+06A3 90037C     455            mov dptr, #Boot_Message2
+06A6 120348     455            lcall ?Send_Constant_String
+06A9 D0E0       455            pop acc
+06AB D082       455            pop dpl
+06AD D083       455            pop dph
+06AF            456      
+06AF D203       457      setb start_flag
+06B1 120443     458      lcall Timer0_Init
+06B4 120591     459            lcall SeedGen
+06B7 120538     460      lcall InitTimer2
+06BA D2AF       461      setb EA
+06BC C209       462      clr win1_flag
+06BE C201       463      clr fr_flag
+06C0            464     
+06C0 7400       465      mov a, #0x00
+06C2 F544       466            mov counter, a
+06C4 7400       467            mov a, #0x00
+06C6 F545       468            mov counterMajor, a
+06C8 C20C       469            clr speedflag
+06CA C20B       470            clr finalroundflag
+06CC            471            
+06CC C20D       472            clr bigbugflag
+06CE C20E       473            clr bigbugflag2
+06D0 C20F       474            clr bigbugflag3
+06D2 C210       475            clr bigbugflag4
+06D4            476      
+06D4 22         477            ret
+06D5            478   
+06D5            479   ;---------------------------------;
+06D5            480   ; Main program loop               ;
+06D5            481   ;---------------------------------;
+06D5            482   
+06D5            483   MyProgram:
+06D5            484       ; Initialize the hardware:
+06D5 75817F     485       mov SP, #7FH
+06D8 120674     486       lcall Initialize_All
+06DB D2A0       487       setb P2.0 ; Pin is used as input for player 1
+06DD D2A1       488             setb P2.1 ; Pin is used as input for player 2
+06DF            489             
+06DF C0E0       490            push acc
+06E1 7401       490            mov a, #1
+06E3 14         490            dec a
+06E4 120355     490            lcall ?Set_Cursor_1 ; Select column and row
+06E7 D0E0       490            pop acc
+06E9 C083       491            push dph
+06EB C082       491            push dpl
+06ED C0E0       491            push acc
+06EF 900398     491            mov dptr, #C1
+06F2 120348     491            lcall ?Send_Constant_String
+06F5 D0E0       491            pop acc
+06F7 D082       491            pop dpl
+06F9 D083       491            pop dph
+06FB            491   
+06FB C0E0       492            push acc
+06FD 740A       492            mov a, #10
+06FF 14         492            dec a
+0700 120355     492            lcall ?Set_Cursor_1 ; Select column and row
+0703 D0E0       492            pop acc
+0705            492   
+0705 C083       493            push dph
+0707 C082       493            push dpl
+0709 C0E0       493            push acc
+070B 90039D     493            mov dptr, #C2
+070E 120348     493            lcall ?Send_Constant_String
+0711 D0E0       493            pop acc
+0713 D082       493            pop dpl
+0715 D083       493            pop dph
+0717 C0E0       494            push acc
+0719 7401       494            mov a, #1
+071B 14         494            dec a
+071C 120353     494            lcall ?Set_Cursor_2 ; Select column and row
+071F D0E0       494            pop acc
+0721 C083       495            push dph
+0723 C082       495            push dpl
+0725 C0E0       495            push acc
+0727 9003A1     495            mov dptr, #C3
+072A 120348     495            lcall ?Send_Constant_String
+072D D0E0       495            pop acc
+072F D082       495            pop dpl
+0731 D083       495            pop dph
+0733 C0E0       496            push acc
+0735 740A       496            mov a, #10
+0737 14         496            dec a
+0738 120353     496            lcall ?Set_Cursor_2 ; Select column and row
+073B D0E0       496            pop acc
+073D            496   
+073D C083       497            push dph
+073F C082       497            push dpl
+0741 C0E0       497            push acc
+0743 9003A6     497            mov dptr, #C4
+0746 120348     497            lcall ?Send_Constant_String
+0749 D0E0       497            pop acc
+074B D082       497            pop dpl
+074D D083       497            pop dph
+074F C0E0       498            push acc
+0751 7407       498            mov a, #7
+0753 14         498            dec a
+0754 120355     498            lcall ?Set_Cursor_1 ; Select column and row
+0757 D0E0       498            pop acc
+0759 C083       499            push dph
+075B C082       499            push dpl
+075D C0E0       499            push acc
+075F 900411     499            mov dptr, #seven
+0762 120348     499            lcall ?Send_Constant_String
+0765 D0E0       499            pop acc
+0767 D082       499            pop dpl
+0769 D083       499            pop dph
+076B C0E0       500            push acc
+076D 7407       500            mov a, #7
+076F 14         500            dec a
+0770 120353     500            lcall ?Set_Cursor_2 ; Select column and row
+0773 D0E0       500            pop acc
+0775 C083       501            push dph
+0777 C082       501            push dpl
+0779 C0E0       501            push acc
+077B 900411     501            mov dptr, #seven
+077E 120348     501            lcall ?Send_Constant_String
+0781 D0E0       501            pop acc
+0783 D082       501            pop dpl
+0785 D083       501            pop dph
+0787            502             
+0787            503             
+0787            504             
+0787 7400       505             mov a, #0x00
+0789 F54D       506            mov player1count, a
+078B            507            
+078B 7400       508                    mov a, #0x00
+078D F54E       509            mov player2count, a
+078F            510            
+078F 7400       511                     mov a, #0x00
+0791 F54F       512            mov player3count, a
+0793            513            
+0793 7400       514                    mov a, #0x00
+0795 F550       515            mov player4count, a
+0797            516       
+0797            517   forever:                                                               ;player 1
+0797            518     ; Measure the period applied to pin P2.0
+0797 C2CA       519       clr TR2 ; Stop counter 2
+0799 75CC00     520       mov TL2, #0
+079C 75CD00     521       mov TH2, #0
+079F 754C00     522       mov T2ov, #0
+07A2 20A0FD     523       jb P2.0, $
+07A5 30A0FD     524       jnb P2.0, $
+07A8 7800       525       mov R0, #0 ; 0 means repeat 256 times
+07AA D2CA       526       setb TR2 ; Start counter 0
+07AC            527   meas_loop1:
+07AC 20A0FD     528       jb P2.0, $
+07AF 30A0FD     529       jnb P2.0, $
+07B2 D8F8       530       djnz R0, meas_loop1 ; Measure the time of 100 periods
+07B4 C2CA       531       clr TR2 ; Stop counter 2, TH2-TL2 has the period
+07B6            532       ; save the period of P2.0 for later use
+07B6            533       
+07B6 85CC30     534            mov x+0, TL2
+07B9 85CD31     535            mov x+1, TH2
+07BC 753200     536            mov x+2, #0
+07BF 753300     537            mov x+3, #0
+07C2            538            
+07C2 753460     539            mov y+0, #low (2400 % 0x10000) 
+07C5 753509     539            mov y+1, #high(2400 % 0x10000) 
+07C8 753600     539            mov y+2, #low (2400 / 0x10000) 
+07CB 753700     539            mov y+3, #high(2400 / 0x10000) 
+07CE 120114     540       lcall sub32
+07D1            541       
+07D1            542       ;load_y(1500)
+07D1            543   ;        lcall x_gt_y
+07D1            544   ;        jnb mf, okayyylessgoo
+07D1            545   ;        Load_x(1500)
+07D1            546            
+07D1            547       okayyylessgoo:
+07D1            548     ;  Set_Cursor(1,1)
+07D1            549       
+07D1            550     ;  lcall hex2bcd
+07D1            551   ;        lcall Display_10_digit_BCD
+07D1            552   ;        
+07D1 200913     553            jb win1_flag, contt
+07D4 C0E0       554            push acc
+07D6 740E       554            mov a, #14
+07D8 14         554            dec a
+07D9 120355     554            lcall ?Set_Cursor_1 ; Select column and row
+07DC D0E0       554            pop acc
+07DE C000       555            push ar0
+07E0 A84D       555            mov r0, player1count
+07E2 12035A     555            lcall ?Display_BCD
+07E5 D000       555            pop ar0
+07E7            556            
+07E7            557   ;        bigbugdetection3:
+07E7            558   ;        mov a, player1count
+07E7            559   ;        cjne a, #0x01, bigbugdetection4
+07E7            560   ;        setb bigbugflag3
+07E7            561   ;;       
+07E7            562   ;        bigbugdetection4:
+07E7            563   ;;       mov a, player1count
+07E7            564   ;        cjne a, #0x09, contt
+07E7            565   ;        setb bigbugflag4
+07E7            566            
+07E7            567            contt:
+07E7            568    ;   Set_Cursor(1, 1)
+07E7            569   ;        lcall hex2bcd5
+07E7            570    ;   lcall DisplayBCD_LCD
+07E7            571       
+07E7 200A4B     572       jb cheatcodeflag, display
+07EA 300248     573            jnb alarm_flag, display
+07ED 200345     574            jb start_flag, display
+07F0 30011D     575            jnb fr_flag, decre  
+07F3 753478     576            mov y+0, #low (1400 % 0x10000) 
+07F6 753505     576            mov y+1, #high(1400 % 0x10000) 
+07F9 753600     576            mov y+2, #low (1400 / 0x10000) 
+07FC 753700     576            mov y+3, #high(1400 / 0x10000) 
+07FF 120152     577            lcall x_gt_y
+0802 30002D     578            jnb mf, wejump
+0805 E54D       579       mov a, player1count
+0807 2401       580       add a, #0x01
+0809 D4         581       da a 
+080A F54D       582       mov player1count, a
+080C D20A       583       setb cheatcodeflag
+080E 8025       584       sjmp display
+0810            585       
+0810            586       decre:
+0810 E54D       587       mov a, player1count
+0812 B40002     588       cjne a, #0x00,decc 
+0815 801E       589       sjmp display
+0817            590       
+0817            591       decc:
+0817 753478     592            mov y+0, #low (1400 % 0x10000) 
+081A 753505     592            mov y+1, #high(1400 % 0x10000) 
+081D 753600     592            mov y+2, #low (1400 / 0x10000) 
+0820 753700     592            mov y+3, #high(1400 / 0x10000) 
+0823 120152     593            lcall x_gt_y
+0826 30000C     594            jnb mf, display
+0829 154D       595       dec player1count
+082B D20A       596       setb cheatcodeflag
+082D 8006       597       sjmp display
+082F            598   
+082F            599   wejump3:
+082F 020842     600   ljmp round2
+0832            601   wejump:
+0832 02086A     602   ljmp cont
+0835            603       
+0835            604       display:
+0835 E54D       605       mov a, player1count
+0837 B405F5     606       cjne a, #0x05, wejump3
+083A            607   ;    jnb bigbugflag3, wejump3
+083A            608    ;   Set_Cursor(1, 1)
+083A            609   ;        Send_Constant_String(#empty)
+083A            610   ;        Set_Cursor(2, 1)
+083A            611   ;        Send_Constant_String(#empty)
+083A            612    ;   Set_Cursor(1, 1)
+083A            613   ;        Send_Constant_String(#roundd)
+083A            614   ;        lcall Wait_Full
+083A            615   ;        Set_Cursor(2,1)
+083A            616   ;        Send_Constant_String(#speeding)
+083A            617   ;        lcall Wait_Half
+083A            618   ;        Set_Cursor(2,1)
+083A            619   ;        Send_Constant_String(#empty)
+083A            620   ;        lcall Wait_Half
+083A            621   ;        Set_Cursor(2,1)
+083A            622   ;        Send_Constant_String(#speeding)
+083A            623   ;        lcall Wait_Half
+083A            624   ;        Set_Cursor(2,1)
+083A            625   ;        Send_Constant_String(#empty)
+083A            626   ;        lcall Wait_Half
+083A            627   ;        Set_Cursor(2,1)
+083A            628   ;        Send_Constant_String(#speeding)
+083A D20C       629       setb speedflag
+083C            630    ;   clr bigbugflag3
+083C 020842     631       ljmp round2
+083F            632       
+083F            633   wejump2:
+083F 020849     634   ljmp wincondition
+0842            635   
+0842            636       round2:
+0842 E54D       637       mov a, player1count
+0844 B410F8     638       cjne a, #0x010, wejump2
+0847            639     ;  jnb bigbugflag4, wejump2
+0847            640       
+0847            641    ;   Set_Cursor(1, 1)
+0847            642   ;        Send_Constant_String(#empty)
+0847            643   ;        Set_Cursor(2, 1)
+0847            644   ;        Send_Constant_String(#empty)
+0847            645    ;    Set_Cursor(1, 1)
+0847            646   ;        Send_Constant_String(#finalround)
+0847            647   ;        lcall Wait_Full
+0847            648   ;        Set_Cursor(2,1)
+0847            649   ;        Send_Constant_String(#speeding2)
+0847            650   ;        lcall Wait_Half
+0847            651   ;        Set_Cursor(2,1)
+0847            652   ;        Send_Constant_String(#empty)
+0847            653   ;        lcall Wait_Half
+0847            654   ;        Set_Cursor(2,1)
+0847            655   ;        Send_Constant_String(#speeding2)
+0847            656   ;        lcall Wait_Half
+0847            657   ;        Set_Cursor(2,1)
+0847            658   ;        Send_Constant_String(#empty)
+0847            659   ;        lcall Wait_Half
+0847            660   ;        Set_Cursor(2,1)
+0847            661   ;        Send_Constant_String(#speeding2)
+0847            662            ;clr bigbugflag4
+0847 D20B       663       setb finalroundflag
+0849            664       
+0849            665       wincondition:
+0849 B4151E     666       cjne a, #0x15, cont
+084C C0E0       667            push acc
+084E 740E       667            mov a, #14
+0850 14         667            dec a
+0851 120355     667            lcall ?Set_Cursor_1 ; Select column and row
+0854 D0E0       667            pop acc
+0856 C083       668            push dph
+0858 C082       668            push dpl
+085A C0E0       668            push acc
+085C 9003B8     668            mov dptr, #win
+085F 120348     668            lcall ?Send_Constant_String
+0862 D0E0       668            pop acc
+0864 D082       668            pop dpl
+0866 D083       668            pop dph
+0868 D209       669            setb win1_flag
+086A            670            
+086A            671    cont:                                                                         ;player 2
+086A            672       ; Measure the period applied to pin P2.1
+086A C2CA       673       clr TR2 ; Stop counter 2
+086C 75CC00     674       mov TL2, #0
+086F 75CD00     675       mov TH2, #0
+0872 754C00     676       mov T2ov, #0
+0875 20A1FD     677       jb P2.1, $
+0878 30A1FD     678       jnb P2.1, $
+087B 7800       679       mov R0, #0 ; 0 means repeat 256 times
+087D D2CA       680       setb TR2 ; Start counter 0
+087F            681   meas_loop2:
+087F 20A1FD     682       jb P2.1, $
+0882 30A1FD     683       jnb P2.1, $
+0885 D8F8       684       djnz R0, meas_loop2 ; Measure the time of 100 periods
+0887 C2CA       685       clr TR2 ; Stop counter 2, TH2-TL2 has the period
+0889            686       ; save the period of P2.1 for later use
+0889            687            
+0889 85CC30     688            mov x+0, TL2
+088C 85CD31     689            mov x+1, TH2
+088F 753200     690            mov x+2, #0
+0892 753300     691            mov x+3, #0
+0895            692            
+0895 753450     693            mov y+0, #low (5200 % 0x10000) 
+0898 753514     693            mov y+1, #high(5200 % 0x10000) 
+089B 753600     693            mov y+2, #low (5200 / 0x10000) 
+089E 753700     693            mov y+3, #high(5200 / 0x10000) 
+08A1 120114     694       lcall sub32
+08A4            695       
+08A4            696   ;    load_y(1300)
+08A4            697   ;        lcall x_gt_y
+08A4            698   ;        jnb mf, okayyylessgo
+08A4            699   ;        Load_x(1300)
+08A4            700            
+08A4            701            okayyylessgo:
+08A4            702       
+08A4            703     ; Set_Cursor(2,1)
+08A4            704    ;   lcall hex2bcd
+08A4            705   ;        lcall Display_10_digit_BCD
+08A4            706            
+08A4 200913     707            jb win1_flag, conttt
+08A7 C0E0       708            push acc
+08A9 7405       708            mov a, #5
+08AB 14         708            dec a
+08AC 120355     708            lcall ?Set_Cursor_1 ; Select column and row
+08AF D0E0       708            pop acc
+08B1 C000       709            push ar0
+08B3 A84E       709            mov r0, player2count
+08B5 12035A     709            lcall ?Display_BCD
+08B8 D000       709            pop ar0
+08BA            710            
+08BA            711   ;        bigbugdetection:
+08BA            712   ;        mov a, player2count
+08BA            713   ;        cjne a, #0x01, bigbugdetection2
+08BA            714   ;        setb bigbugflag
+08BA            715   ;        
+08BA            716   ;        bigbugdetection2:
+08BA            717   ;        mov a, player2count
+08BA            718   ;        cjne a, #0x09, bigbugdetection2
+08BA            719   ;        setb bigbugflag2
+08BA            720            
+08BA            721            conttt:
+08BA            722    ;   Set_Cursor(2, 1)
+08BA            723   ;        lcall hex2bcd5
+08BA            724    ;   lcall DisplayBCD_LCD
+08BA            725    
+08BA 200A48     726            jb cheatcodeflag, display2
+08BD 300245     727            jnb alarm_flag, display2
+08C0 200342     728            jb start_flag, display2
+08C3 30011D     729            jnb fr_flag, decre2  
+08C6 753440     730            mov y+0, #low (1600 % 0x10000) 
+08C9 753506     730            mov y+1, #high(1600 % 0x10000) 
+08CC 753600     730            mov y+2, #low (1600 / 0x10000) 
+08CF 753700     730            mov y+3, #high(1600 / 0x10000) 
+08D2 120152     731            lcall x_gt_y
+08D5 30002D     732            jnb mf, display2
+08D8 E54E       733       mov a, player2count
+08DA 2401       734       add a, #0x01
+08DC D4         735       da a 
+08DD F54E       736       mov player2count, a
+08DF D20A       737       setb cheatcodeflag
+08E1 8022       738       sjmp display2
+08E3            739       
+08E3            740       decre2:
+08E3 E54E       741       mov a, player2count
+08E5 B40002     742       cjne a, #0x00,deccc 
+08E8 801B       743       sjmp display2
+08EA            744       
+08EA            745       deccc:
+08EA 753440     746            mov y+0, #low (1600 % 0x10000) 
+08ED 753506     746            mov y+1, #high(1600 % 0x10000) 
+08F0 753600     746            mov y+2, #low (1600 / 0x10000) 
+08F3 753700     746            mov y+3, #high(1600 / 0x10000) 
+08F6 120152     747            lcall x_gt_y
+08F9 300009     748            jnb mf, display2
+08FC 154E       749       dec player2count
+08FE D20A       750       setb cheatcodeflag
+0900 8003       751       sjmp display2
+0902            752       
+0902            753   wejump4:
+0902 020911     754   ljmp rround2
+0905            755       
+0905            756       display2:
+0905 E54E       757       mov a, player2count
+0907 B405F8     758       cjne a, #0x05, wejump4
+090A            759    ;   jnb bigbugflag, wejump4
+090A            760    ;   Set_Cursor(1, 1)
+090A            761   ;        Send_Constant_String(#empty)
+090A            762   ;        Set_Cursor(2, 1)
+090A            763   ;        Send_Constant_String(#empty)
+090A            764    ;   Set_Cursor(1, 1)
+090A            765   ;        Send_Constant_String(#roundd)
+090A            766   ;        lcall Wait_Full
+090A            767   ;        Set_Cursor(2,1)
+090A            768   ;        Send_Constant_String(#speeding)
+090A            769   ;        lcall Wait_Half
+090A            770   ;        Set_Cursor(2,1)
+090A            771   ;        Send_Constant_String(#empty)
+090A            772   ;        lcall Wait_Half
+090A            773   ;        Set_Cursor(2,1)
+090A            774   ;        Send_Constant_String(#speeding)
+090A            775   ;        lcall Wait_Half
+090A            776   ;        Set_Cursor(2,1)
+090A            777   ;        Send_Constant_String(#empty)
+090A            778   ;        lcall Wait_Half
+090A            779   ;        Set_Cursor(2,1)
+090A            780   ;        Send_Constant_String(#speeding)
+090A D20C       781       setb speedflag
+090C            782     ;  clr bigbugflag
+090C 8003       783       sjmp rround2
+090E            784       
+090E            785       wejump5:
+090E 020918     786       ljmp wincondition2
+0911            787       
+0911            788       rround2:
+0911 E54E       789       mov a, player2count
+0913 B410F8     790       cjne a, #0x10, wejump5
+0916            791      ; jnb bigbugflag2, wejump5
+0916            792    ;   Set_Cursor(1, 1)
+0916            793   ;        Send_Constant_String(#empty)
+0916            794   ;        Set_Cursor(2, 1)
+0916            795   ;        Send_Constant_String(#empty)
+0916            796    ;   Set_Cursor(1, 1)
+0916            797   ;        Send_Constant_String(#finalround)
+0916            798   ;        lcall Wait_Full
+0916            799   ;        Set_Cursor(2,1)
+0916            800   ;        Send_Constant_String(#speeding2)
+0916            801   ;        lcall Wait_Half
+0916            802   ;        Set_Cursor(2,1)
+0916            803   ;        Send_Constant_String(#empty)
+0916            804   ;        lcall Wait_Half
+0916            805   ;        Set_Cursor(2,1)
+0916            806   ;        Send_Constant_String(#speeding2)
+0916            807   ;        lcall Wait_Half
+0916            808   ;        Set_Cursor(2,1)
+0916            809   ;        Send_Constant_String(#empty)
+0916            810   ;        lcall Wait_Half
+0916            811   ;        Set_Cursor(2,1)
+0916            812   ;        Send_Constant_String(#speeding2)
+0916            813            ;clr bigbugflag2
+0916 D20B       814       setb finalroundflag
+0918            815       
+0918            816       
+0918            817   wincondition2:
+0918            818    
+0918 E54E       819       mov a, player2count
+091A B4151E     820       cjne a, #0x15, player3
+091D C0E0       821            push acc
+091F 7405       821            mov a, #5
+0921 14         821            dec a
+0922 120355     821            lcall ?Set_Cursor_1 ; Select column and row
+0925 D0E0       821            pop acc
+0927 C083       822            push dph
+0929 C082       822            push dpl
+092B C0E0       822            push acc
+092D 9003B8     822            mov dptr, #win
+0930 120348     822            lcall ?Send_Constant_String
+0933 D0E0       822            pop acc
+0935 D082       822            pop dpl
+0937 D083       822            pop dph
+0939 D209       823            setb win1_flag
+093B            824            
+093B            825            ;                                                                   player 3
+093B            826   player3:
+093B            827       ; Measure the period applied to pin P2.1
+093B C2CA       828       clr TR2 ; Stop counter 2
+093D 75CC00     829       mov TL2, #0
+0940 75CD00     830       mov TH2, #0
+0943 754C00     831       mov T2ov, #0
+0946 2080FD     832       jb P0.0, $
+0949 3080FD     833       jnb P0.0, $
+094C 7800       834       mov R0, #0 ; 0 means repeat 256 times
+094E D2CA       835       setb TR2 ; Start counter 0
+0950            836       
+0950            837   meas_loop3:
+0950 2080FD     838       jb P0.0, $
+0953 3080FD     839       jnb P0.0, $
+0956 D8F8       840       djnz R0, meas_loop3 ; Measure the time of 100 periods
+0958 C2CA       841       clr TR2 ; Stop counter 2, TH2-TL2 has the period
+095A            842       ; save the period of P2.1 for later use
+095A            843            
+095A 85CC30     844            mov x+0, TL2
+095D 85CD31     845            mov x+1, TH2
+0960 753200     846            mov x+2, #0
+0963 753300     847            mov x+3, #0
+0966            848            
+0966 753440     849            mov y+0, #low (8000 % 0x10000) 
+0969 75351F     849            mov y+1, #high(8000 % 0x10000) 
+096C 753600     849            mov y+2, #low (8000 / 0x10000) 
+096F 753700     849            mov y+3, #high(8000 / 0x10000) 
+0972 120114     850       lcall sub32
+0975            851            
+0975            852            okayyylessgo2:
+0975            853       
+0975            854    ;  Set_Cursor(1,1)
+0975            855     ;  lcall hex2bcd
+0975            856            ;lcall Display_10_digit_BCD
+0975            857            
+0975 200913     858            jb win1_flag, contttt
+0978 C0E0       859            push acc
+097A 7405       859            mov a, #5
+097C 14         859            dec a
+097D 120353     859            lcall ?Set_Cursor_2 ; Select column and row
+0980 D0E0       859            pop acc
+0982 C000       860            push ar0
+0984 A84F       860            mov r0, player3count
+0986 12035A     860            lcall ?Display_BCD
+0989 D000       860            pop ar0
+098B            861            
+098B            862   ;        bigbugdetection:
+098B            863   ;        mov a, player2count
+098B            864   ;        cjne a, #0x01, bigbugdetection2
+098B            865   ;        setb bigbugflag
+098B            866   ;        
+098B            867   ;        bigbugdetection2:
+098B            868   ;        mov a, player2count
+098B            869   ;        cjne a, #0x09, bigbugdetection2
+098B            870   ;        setb bigbugflag2
+098B            871            
+098B            872            contttt:
+098B            873    ;   Set_Cursor(2, 1)
+098B            874   ;        lcall hex2bcd5
+098B            875    ;   lcall DisplayBCD_LCD
+098B            876    
+098B 200A48     877            jb cheatcodeflag, display3
+098E 300245     878            jnb alarm_flag, display3
+0991 200342     879            jb start_flag, display3
+0994 30011D     880            jnb fr_flag, decre3  
+0997 753478     881            mov y+0, #low (1400 % 0x10000) 
+099A 753505     881            mov y+1, #high(1400 % 0x10000) 
+099D 753600     881            mov y+2, #low (1400 / 0x10000) 
+09A0 753700     881            mov y+3, #high(1400 / 0x10000) 
+09A3 120152     882            lcall x_gt_y
+09A6 30002D     883            jnb mf, display3
+09A9 E54F       884       mov a, player3count
+09AB 2401       885       add a, #0x01
+09AD D4         886       da a 
+09AE F54F       887       mov player3count, a
+09B0 D20A       888       setb cheatcodeflag
+09B2 8022       889       sjmp display3
+09B4            890       
+09B4            891       decre3:
+09B4 E54F       892       mov a, player3count
+09B6 B40002     893       cjne a, #0x00,deccc3 
+09B9 801B       894       sjmp display3
+09BB            895       
+09BB            896       deccc3:
+09BB 753478     897            mov y+0, #low (1400 % 0x10000) 
+09BE 753505     897            mov y+1, #high(1400 % 0x10000) 
+09C1 753600     897            mov y+2, #low (1400 / 0x10000) 
+09C4 753700     897            mov y+3, #high(1400 / 0x10000) 
+09C7 120152     898            lcall x_gt_y
+09CA 300009     899            jnb mf, display3
+09CD 154F       900       dec player3count
+09CF D20A       901       setb cheatcodeflag
+09D1 8003       902       sjmp display3
+09D3            903       
+09D3            904   wejump7:
+09D3 0209E2     905   ljmp rround3
+09D6            906       
+09D6            907       display3:
+09D6 E54E       908       mov a, player2count
+09D8 B405F8     909       cjne a, #0x05, wejump7
+09DB            910    ;   jnb bigbugflag, wejump4
+09DB            911    ;   Set_Cursor(1, 1)
+09DB            912   ;        Send_Constant_String(#empty)
+09DB            913   ;        Set_Cursor(2, 1)
+09DB            914   ;        Send_Constant_String(#empty)
+09DB            915    ;   Set_Cursor(1, 1)
+09DB            916   ;        Send_Constant_String(#roundd)
+09DB            917   ;        lcall Wait_Full
+09DB            918   ;        Set_Cursor(2,1)
+09DB            919   ;        Send_Constant_String(#speeding)
+09DB            920   ;        lcall Wait_Half
+09DB            921   ;        Set_Cursor(2,1)
+09DB            922   ;        Send_Constant_String(#empty)
+09DB            923   ;        lcall Wait_Half
+09DB            924   ;        Set_Cursor(2,1)
+09DB            925   ;        Send_Constant_String(#speeding)
+09DB            926   ;        lcall Wait_Half
+09DB            927   ;        Set_Cursor(2,1)
+09DB            928   ;        Send_Constant_String(#empty)
+09DB            929   ;        lcall Wait_Half
+09DB            930   ;        Set_Cursor(2,1)
+09DB            931   ;        Send_Constant_String(#speeding)
+09DB D20C       932       setb speedflag
+09DD            933     ;;  clr bigbugflag
+09DD 8003       934       sjmp rround3
+09DF            935       
+09DF            936       wejump8:
+09DF 0209E9     937       ljmp wincondition3
+09E2            938       
+09E2            939       rround3:
+09E2 E54F       940       mov a, player3count
+09E4 B410F8     941       cjne a, #0x10, wejump8
+09E7            942      ; jnb bigbugflag2, wejump5
+09E7            943     ;  Set_Cursor(1, 1)
+09E7            944            ;Send_Constant_String(#empty)
+09E7            945   ;        Set_Cursor(2, 1)
+09E7            946   ;        Send_Constant_String(#empty)
+09E7            947    ;   Set_Cursor(1, 1)
+09E7            948   ;        Send_Constant_String(#finalround)
+09E7            949   ;        lcall Wait_Full
+09E7            950   ;        Set_Cursor(2,1)
+09E7            951   ;        Send_Constant_String(#speeding2)
+09E7            952   ;        lcall Wait_Half
+09E7            953   ;        Set_Cursor(2,1)
+09E7            954   ;        Send_Constant_String(#empty)
+09E7            955   ;        lcall Wait_Half
+09E7            956   ;        Set_Cursor(2,1)
+09E7            957   ;        Send_Constant_String(#speeding2)
+09E7            958   ;        lcall Wait_Half
+09E7            959   ;        Set_Cursor(2,1)
+09E7            960   ;        Send_Constant_String(#empty)
+09E7            961   ;        lcall Wait_Half
+09E7            962   ;        Set_Cursor(2,1)
+09E7            963   ;        Send_Constant_String(#speeding2)
+09E7            964            ;clr bigbugflag2
+09E7 D20B       965       setb finalroundflag
+09E9            966       
+09E9            967       
+09E9            968   wincondition3:
+09E9            969    
+09E9 E54F       970       mov a, player3count
+09EB B4151E     971       cjne a, #0x15, player4
+09EE C0E0       972            push acc
+09F0 7405       972            mov a, #5
+09F2 14         972            dec a
+09F3 120353     972            lcall ?Set_Cursor_2 ; Select column and row
+09F6 D0E0       972            pop acc
+09F8 C083       973            push dph
+09FA C082       973            push dpl
+09FC C0E0       973            push acc
+09FE 9003B8     973            mov dptr, #win
+0A01 120348     973            lcall ?Send_Constant_String
+0A04 D0E0       973            pop acc
+0A06 D082       973            pop dpl
+0A08 D083       973            pop dph
+0A0A D209       974            setb win1_flag
+0A0C            975   ;                                                                         player 4
+0A0C            976   
+0A0C            977   player4:
+0A0C            978       ; Measure the period applied to pin P2.1
+0A0C C2CA       979       clr TR2 ; Stop counter 2
+0A0E 75CC00     980       mov TL2, #0
+0A11 75CD00     981       mov TH2, #0
+0A14 754C00     982       mov T2ov, #0
+0A17 2081FD     983       jb P0.1, $
+0A1A 3081FD     984       jnb P0.1, $
+0A1D 7800       985       mov R0, #0 ; 0 means repeat 256 times
+0A1F D2CA       986       setb TR2 ; Start counter 0
+0A21            987       
+0A21            988   meas_loop4:
+0A21 2081FD     989       jb P0.1, $
+0A24 3081FD     990       jnb P0.1, $
+0A27 D8F8       991       djnz R0, meas_loop4 ; Measure the time of 100 periods
+0A29 C2CA       992       clr TR2 ; Stop counter 2, TH2-TL2 has the period
+0A2B            993       ; save the period of P2.1 for later use
+0A2B            994            
+0A2B 85CC30     995            mov x+0, TL2
+0A2E 85CD31     996            mov x+1, TH2
+0A31 753200     997            mov x+2, #0
+0A34 753300     998            mov x+3, #0
+0A37            999            
+0A37 7534E0    1000            mov y+0, #low (12000 % 0x10000) 
+0A3A 75352E    1000            mov y+1, #high(12000 % 0x10000) 
+0A3D 753600    1000            mov y+2, #low (12000 / 0x10000) 
+0A40 753700    1000            mov y+3, #high(12000 / 0x10000) 
+0A43 120114    1001       lcall sub32
+0A46           1002            
+0A46           1003            okayyylessgo3:
+0A46           1004       
+0A46           1005     ;  Set_Cursor(2,14)
+0A46           1006      ; lcall hex2bcd
+0A46           1007            ;lcall Display_10_digit_BCD
+0A46           1008            
+0A46 200913    1009            jb win1_flag, conttttt
+0A49 C0E0      1010            push acc
+0A4B 740E      1010            mov a, #14
+0A4D 14        1010            dec a
+0A4E 120353    1010            lcall ?Set_Cursor_2 ; Select column and row
+0A51 D0E0      1010            pop acc
+0A53 C000      1011            push ar0
+0A55 A850      1011            mov r0, player4count
+0A57 12035A    1011            lcall ?Display_BCD
+0A5A D000      1011            pop ar0
+0A5C           1012            
+0A5C           1013   ;        bigbugdetection:
+0A5C           1014   ;        mov a, player2count
+0A5C           1015   ;        cjne a, #0x01, bigbugdetection2
+0A5C           1016   ;        setb bigbugflag
+0A5C           1017   ;        
+0A5C           1018   ;        bigbugdetection2:
+0A5C           1019   ;        mov a, player2count
+0A5C           1020   ;        cjne a, #0x09, bigbugdetection2
+0A5C           1021   ;        setb bigbugflag2
+0A5C           1022            
+0A5C           1023            conttttt:
+0A5C           1024    ;   Set_Cursor(2, 1)
+0A5C           1025   ;        lcall hex2bcd5
+0A5C           1026    ;   lcall DisplayBCD_LCD
+0A5C           1027    
+0A5C 200A48    1028            jb cheatcodeflag, display4
+0A5F 300245    1029            jnb alarm_flag, display4
+0A62 200342    1030            jb start_flag, display4
+0A65 30011D    1031            jnb fr_flag, decre4  
+0A68 7534E8    1032            mov y+0, #low (1000 % 0x10000) 
+0A6B 753503    1032            mov y+1, #high(1000 % 0x10000) 
+0A6E 753600    1032            mov y+2, #low (1000 / 0x10000) 
+0A71 753700    1032            mov y+3, #high(1000 / 0x10000) 
+0A74 120152    1033            lcall x_gt_y
+0A77 30002D    1034            jnb mf, display4
+0A7A E550      1035       mov a, player4count
+0A7C 2401      1036       add a, #0x01
+0A7E D4        1037       da a 
+0A7F F550      1038       mov player4count, a
+0A81 D20A      1039       setb cheatcodeflag
+0A83 8022      1040       sjmp display4
+0A85           1041       
+0A85           1042       decre4:
+0A85 E550      1043       mov a, player4count
+0A87 B40002    1044       cjne a, #0x00,deccc4 
+0A8A 801B      1045       sjmp display4
+0A8C           1046       
+0A8C           1047       deccc4:
+0A8C 7534E8    1048            mov y+0, #low (1000 % 0x10000) 
+0A8F 753503    1048            mov y+1, #high(1000 % 0x10000) 
+0A92 753600    1048            mov y+2, #low (1000 / 0x10000) 
+0A95 753700    1048            mov y+3, #high(1000 / 0x10000) 
+0A98 120152    1049            lcall x_gt_y
+0A9B 300009    1050            jnb mf, display4
+0A9E 1550      1051       dec player4count
+0AA0 D20A      1052       setb cheatcodeflag
+0AA2 8003      1053       sjmp display4
+0AA4           1054       
+0AA4           1055   wejump12:
+0AA4 020AB3    1056   ljmp rround4
+0AA7           1057       
+0AA7           1058       display4:
+0AA7 E550      1059       mov a, player4count
+0AA9 B405F8    1060       cjne a, #0x05, wejump12
+0AAC           1061    ;   jnb bigbugflag, wejump4
+0AAC           1062    ;   Set_Cursor(1, 1)
+0AAC           1063   ;        Send_Constant_String(#empty)
+0AAC           1064   ;        Set_Cursor(2, 1)
+0AAC           1065   ;        Send_Constant_String(#empty)
+0AAC           1066    ;   Set_Cursor(1, 1)
+0AAC           1067   ;        Send_Constant_String(#roundd)
+0AAC           1068   ;        lcall Wait_Full
+0AAC           1069   ;        Set_Cursor(2,1)
+0AAC           1070   ;        Send_Constant_String(#speeding)
+0AAC           1071   ;        lcall Wait_Half
+0AAC           1072   ;        Set_Cursor(2,1)
+0AAC           1073   ;        Send_Constant_String(#empty)
+0AAC           1074   ;        lcall Wait_Half
+0AAC           1075   ;        Set_Cursor(2,1)
+0AAC           1076   ;        Send_Constant_String(#speeding)
+0AAC           1077   ;        lcall Wait_Half
+0AAC           1078   ;        Set_Cursor(2,1)
+0AAC           1079   ;        Send_Constant_String(#empty)
+0AAC           1080   ;        lcall Wait_Half
+0AAC           1081   ;        Set_Cursor(2,1)
+0AAC           1082   ;        Send_Constant_String(#speeding)
+0AAC D20C      1083       setb speedflag
+0AAE           1084     ;  clr bigbugflag
+0AAE 8003      1085       sjmp rround4
+0AB0           1086       
+0AB0           1087       wejump15:
+0AB0 020ABA    1088       ljmp wincondition4
+0AB3           1089       
+0AB3           1090       rround4:
+0AB3 E550      1091       mov a, player4count
+0AB5 B410F8    1092       cjne a, #0x10, wejump15
+0AB8           1093      ; jnb bigbugflag2, wejump5
+0AB8           1094   ;    Set_Cursor(1, 1)
+0AB8           1095   ;        Send_Constant_String(#empty)
+0AB8           1096   ;        Set_Cursor(2, 1)
+0AB8           1097   ;        Send_Constant_String(#empty)
+0AB8           1098    ;   Set_Cursor(1, 1)
+0AB8           1099   ;        Send_Constant_String(#finalround)
+0AB8           1100   ;        lcall Wait_Full
+0AB8           1101   ;        Set_Cursor(2,1)
+0AB8           1102   ;        Send_Constant_String(#speeding2)
+0AB8           1103   ;        lcall Wait_Half
+0AB8           1104   ;        Set_Cursor(2,1)
+0AB8           1105   ;        Send_Constant_String(#empty)
+0AB8           1106   ;        lcall Wait_Half
+0AB8           1107   ;        Set_Cursor(2,1)
+0AB8           1108   ;        Send_Constant_String(#speeding2)
+0AB8           1109   ;        lcall Wait_Half
+0AB8           1110   ;        Set_Cursor(2,1)
+0AB8           1111   ;        Send_Constant_String(#empty)
+0AB8           1112   ;        lcall Wait_Half
+0AB8           1113   ;        Set_Cursor(2,1)
+0AB8           1114   ;        Send_Constant_String(#speeding2)
+0AB8           1115   ;        ;clr bigbugflag2
+0AB8 D20B      1116       setb finalroundflag
+0ABA           1117       
+0ABA           1118       
+0ABA           1119   wincondition4:
+0ABA E550      1120       mov a, player4count
+0ABC B4151E    1121       cjne a, #0x15, soundstuff
+0ABF C0E0      1122            push acc
+0AC1 740E      1122            mov a, #14 
+0AC3 14        1122            dec a
+0AC4 120353    1122            lcall ?Set_Cursor_2 ; Select column and row
+0AC7 D0E0      1122            pop acc
+0AC9 C083      1123            push dph
+0ACB C082      1123            push dpl
+0ACD C0E0      1123            push acc
+0ACF 9003B8    1123            mov dptr, #win
+0AD2 120348    1123            lcall ?Send_Constant_String
+0AD5 D0E0      1123            pop acc
+0AD7 D082      1123            pop dpl
+0AD9 D083      1123            pop dph
+0ADB D209      1124            setb win1_flag
+0ADD           1125            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+0ADD           1126   soundstuff:
+0ADD 200975    1127            jb win1_flag, connect
+0AE0 300303    1128       jnb start_flag, NoSoundBridge
+0AE3           1129      
+0AE3 020AE9    1130            ljmp StartingSounds
+0AE6           1131   
+0AE6           1132   NoSoundBridge:
+0AE6 020B58    1133            ljmp NoSound
+0AE9           1134              
+0AE9           1135   StartingSounds:
+0AE9 D201      1136            setb fr_flag
+0AEB D207      1137            setb E_flag
+0AED D202      1138            setb alarm_flag
+0AEF 120661    1139            lcall Wait_Half
+0AF2           1140            
+0AF2 C202      1141            clr alarm_flag
+0AF4 C002      1142            push AR2
+0AF6 7A14      1142            mov R2, #20
+0AF8 1202CF    1142            lcall ?Wait_Milli_Seconds
+0AFB D002      1142            pop AR2
+0AFD           1143            
+0AFD D202      1144            setb alarm_flag
+0AFF 120661    1145            lcall Wait_Half 
+0B02           1146            
+0B02 C202      1147            clr alarm_flag
+0B04 120661    1148            lcall Wait_Half
+0B07           1149            
+0B07 D202      1150            setb alarm_flag
+0B09 120661    1151            lcall Wait_Half
+0B0C           1152            
+0B0C C202      1153            clr alarm_flag
+0B0E 120661    1154            lcall Wait_Half
+0B11           1155            
+0B11 D202      1156            setb alarm_flag
+0B13 D204      1157            setb C_flag
+0B15 120661    1158            lcall Wait_Half
+0B18           1159            
+0B18 C202      1160            clr alarm_flag
+0B1A C204      1161            clr C_flag
+0B1C C002      1162            push AR2
+0B1E 7A14      1162            mov R2, #20
+0B20 1202CF    1162            lcall ?Wait_Milli_Seconds
+0B23 D002      1162            pop AR2
+0B25           1163            
+0B25 D202      1164            setb alarm_flag
+0B27 120645    1165            lcall Wait_Full
+0B2A           1166            
+0B2A C202      1167            clr alarm_flag
+0B2C C002      1168            push AR2
+0B2E 7A14      1168            mov R2, #20
+0B30 1202CF    1168            lcall ?Wait_Milli_Seconds
+0B33 D002      1168            pop AR2
+0B35           1169            
+0B35 D202      1170            setb alarm_flag
+0B37 D205      1171            setb G_flag
+0B39 120645    1172            lcall Wait_Full
+0B3C           1173            
+0B3C C202      1174            clr alarm_flag
+0B3E C205      1175            clr G_flag
+0B40 120645    1176            lcall Wait_Full
+0B43           1177            
+0B43 D202      1178            setb alarm_flag
+0B45 D206      1179            setb Gl_flag
+0B47 120645    1180            lcall Wait_Full
+0B4A 120645    1181            lcall Wait_Full
+0B4D C206      1182            clr Gl_flag
+0B4F C207      1183            clr E_flag
+0B51 C203      1184            clr start_flag
+0B53 8003      1185            sjmp NoSound
+0B55           1186            
+0B55           1187   connect:
+0B55 020B74    1188   ljmp theend
+0B58           1189   
+0B58           1190   NoSound:
+0B58           1191   
+0B58 200817    1192            jb wait_flag, Waiting
+0B5B C202      1193            clr alarm_flag
+0B5D 1205A5    1194            lcall Random
+0B60 120601    1195            lcall Wait_Random_Compounded
+0B63 1205A5    1196            lcall Random
+0B66 E541      1197            mov a, Seed+1
+0B68 A2E3      1198            mov c, acc.3
+0B6A 9201      1199            mov fr_flag, c
+0B6C D202      1200            setb alarm_flag
+0B6E D208      1201            setb wait_flag
+0B70 C20A      1202            clr cheatcodeflag
+0B72           1203   
+0B72           1204   Waiting:
+0B72 8002      1205   sjmp repeat
+0B74           1206   theend:
+0B74 C202      1207   clr alarm_flag
+0B76           1208   Repeat:
+0B76 020797    1209       ljmp forever ; Repeat! 
+0B79           1210       
+0B79           1211   
+0B79           1212   en
